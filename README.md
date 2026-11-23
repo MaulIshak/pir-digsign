@@ -116,6 +116,21 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
+### Opsi 3: Deploy Produksi dengan Cloudflare Tunnel (Zero Open Ports)
+
+File siap pakai tersedia di `docker-compose.prod.yml` dan `deploy/nginx.conf`:
+
+1. Buat Tunnel di **Cloudflare Zero Trust -> Networks -> Tunnels -> Create a tunnel (Cloudflared)**, salin **Tunnel Token**.
+2. Pada tab **Public Hostname** tunnel tersebut, tambahkan 1 hostname saja:
+   - **Domain / Subdomain:** `sign.domainanda.com`
+   - **Service Type:** `HTTP`
+   - **URL:** `gateway:80`
+3. Di server, siapkan `.env` dari `.env.example`, lalu isi `APP_DOMAIN`, `CLOUDFLARE_TUNNEL_TOKEN`, `JWT_SECRET_KEY`, `POSTGRES_PASSWORD`, `STORAGE_ENCRYPTION_KEY`, `CERT_KEY_PASSPHRASE`, dan konfigurasi SMTP.
+4. Jalankan:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+   ```
+
 ---
 
 ## Cara Mengetes (Verifikasi Kriteria Selesai)
