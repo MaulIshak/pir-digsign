@@ -215,6 +215,12 @@ export const api = {
       all_pages: boolean;
       signer_title?: string;
       signer_display_name?: string;
+      show_qr?: boolean;
+      show_labels?: boolean;
+      show_name?: boolean;
+      show_date?: boolean;
+      show_border?: boolean;
+      transparent_background?: boolean;
     }
   ) {
     return apiFetch<DocumentDetail>(`/documents/${id}/sign`, {

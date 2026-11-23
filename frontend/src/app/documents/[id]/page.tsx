@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import PdfViewerCanvas, { type PageMetrics } from "@/components/PdfViewerCanvas";
-import StampOverlay from "@/components/StampOverlay";
+import StampOverlay, { type StampDisplayOptions } from "@/components/StampOverlay";
 import SignaturePadModal from "@/components/SignaturePadModal";
 import InviteSignersModal from "@/components/InviteSignersModal";
 import { api, ApiError } from "@/lib/api";
@@ -49,12 +49,22 @@ export default function DocumentStudioPage() {
     totalPages: 1,
   });
 
-  // Posisi default stempel di layar (piksel CSS di atas halaman PDF)
+  // Posisi & ukuran default stempel ramping minimalis (menyerupai stempel surat resmi)
   const [stampRect, setStampRect] = useState<Rect>({
     x: 60,
     y: 420,
-    w: 250,
-    h: 112,
+    w: 190,
+    h: 70,
+  });
+
+  // Opsi tampilan stempel (bisa disembunyikan/dimunculkan bebas oleh pengguna)
+  const [stampOptions, setStampOptions] = useState<StampDisplayOptions>({
+    showQr: true,
+    showLabels: true,
+    showName: false,
+    showDate: false,
+    showBorder: true,
+    transparentBackground: true,
   });
 
   const [openSigModal, setOpenSigModal] = useState(false);
@@ -130,6 +140,12 @@ export default function DocumentStudioPage() {
         all_pages: allPages,
         signer_title: signerTitle.trim() || undefined,
         signer_display_name: signerDisplayName.trim() || user?.name,
+        show_qr: stampOptions.showQr,
+        show_labels: stampOptions.showLabels,
+        show_name: stampOptions.showName,
+        show_date: stampOptions.showDate,
+        show_border: stampOptions.showBorder,
+        transparent_background: stampOptions.transparentBackground,
       });
 
       const refreshedPdf = await api.fetchDocumentPdfBytes(doc.id);
@@ -278,6 +294,7 @@ export default function DocumentStudioPage() {
                     signatureImageUrl={selectedSig?.image_data_url}
                     signerName={signerDisplayName || user?.name || ""}
                     signerTitle={signerTitle}
+                    options={stampOptions}
                   />
                 ) : null
               }
@@ -354,39 +371,121 @@ export default function DocumentStudioPage() {
                     )}
                   </div>
 
-                  {/* Info Penanda Tangan di Bawah Blok Stempel */}
-                  <div>
-                    <label
-                      htmlFor="signer-name"
-                      className="block text-xs font-semibold text-slate-700 mb-1"
-                    >
-                      Nama Jelas di Stempel
-                    </label>
-                    <input
-                      id="signer-name"
-                      type="text"
-                      value={signerDisplayName}
-                      onChange={(e) => setSignerDisplayName(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
+                  {/* Opsi Tampilan Stempel (munculkan / sembunyikan QR, label, teks, bingkai) */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-slate-700">
+                      Tampilan Stempel
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 text-xs text-slate-700">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.showQr}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({ ...o, showQr: e.target.checked }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Tampilkan QR Code Verifikasi
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.showLabels}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({ ...o, showLabels: e.target.checked }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Tampilkan label &ldquo;Digitally signed / Simple signed&rdquo;
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.showBorder}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({ ...o, showBorder: e.target.checked }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Bingkai tipis kotak tanda tangan
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.showName}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({ ...o, showName: e.target.checked }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Tampilkan Nama &amp; Jabatan di bawah stempel
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.showDate}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({ ...o, showDate: e.target.checked }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Tampilkan Tanggal &amp; Waktu
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stampOptions.transparentBackground}
+                          onChange={(e) =>
+                            setStampOptions((o) => ({
+                              ...o,
+                              transparentBackground: e.target.checked,
+                            }))
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Latar transparan
+                      </label>
+                    </div>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="signer-title"
-                      className="block text-xs font-semibold text-slate-700 mb-1"
-                    >
-                      Jabatan (Opsional)
-                    </label>
-                    <input
-                      id="signer-title"
-                      type="text"
-                      value={signerTitle}
-                      onChange={(e) => setSignerTitle(e.target.value)}
-                      placeholder="Misal: Direktur Utama"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
+                  {/* Input Nama & Jabatan (tampil jika showName aktif, tetap bisa diedit untuk metadata PAdES) */}
+                  {stampOptions.showName && (
+                    <div className="space-y-3">
+                      <div>
+                        <label
+                          htmlFor="signer-name"
+                          className="block text-xs font-semibold text-slate-700 mb-1"
+                        >
+                          Nama Jelas di Stempel
+                        </label>
+                        <input
+                          id="signer-name"
+                          type="text"
+                          value={signerDisplayName}
+                          onChange={(e) => setSignerDisplayName(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="signer-title"
+                          className="block text-xs font-semibold text-slate-700 mb-1"
+                        >
+                          Jabatan (Opsional)
+                        </label>
+                        <input
+                          id="signer-title"
+                          type="text"
+                          value={signerTitle}
+                          onChange={(e) => setSignerTitle(e.target.value)}
+                          placeholder="Misal: Direktur Utama"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                     <input

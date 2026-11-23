@@ -91,7 +91,7 @@ def test_incremental_signing_two_signers_and_tamper_detection(tmp_path: Path):
     assert sigs_after_1[0].intact is True
     assert sigs_after_1[0].valid is True
 
-    # Tanda tangan ke-2 (Sig2) pada PDF hasil tanda tangan ke-1
+    # Tanda tangan ke-2 (Sig2) pada PDF hasil tanda tangan ke-1 (tanpa QR & tanpa label - hanya TTD murni)
     res2 = sign_pdf_incremental(
         pdf_bytes=res1.signed_pdf_bytes,
         signature_png_bytes=sig_png,
@@ -101,10 +101,16 @@ def test_incremental_signing_two_signers_and_tamper_detection(tmp_path: Path):
         page=1,
         x=310,
         y=80,
-        w=220,
-        h=95,
+        w=190,
+        h=70,
         all_pages=False,
         provider=provider,
+        show_qr=False,
+        show_labels=False,
+        show_border=False,
+        show_name=True,
+        show_date=True,
+        transparent_background=True,
     )
     assert res2.field_name == "Sig2"
 

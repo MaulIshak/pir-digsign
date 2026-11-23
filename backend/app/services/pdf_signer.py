@@ -168,7 +168,12 @@ def sign_pdf_incremental(
     signer_title: Optional[str] = None,
     all_pages: bool = False,
     provider: Optional[SignerProvider] = None,
-    transparent_background: bool = False,
+    transparent_background: bool = True,
+    show_qr: bool = True,
+    show_labels: bool = True,
+    show_name: bool = False,
+    show_date: bool = False,
+    show_border: bool = True,
 ) -> SignResult:
     """
     Menanamkan stempel visual (QR kiri + tanda tangan kanan) dan tanda tangan kriptografis
@@ -223,6 +228,11 @@ def sign_pdf_incremental(
         height_pt=box_h,
         signer_title=signer_title,
         transparent_background=transparent_background,
+        show_qr=show_qr,
+        show_labels=show_labels,
+        show_name=show_name,
+        show_date=show_date,
+        show_border=show_border,
     )
 
     # 4. Buka dengan IncrementalPdfFileWriter (TIDAK pernah menulis ulang revisi sebelumnya!)

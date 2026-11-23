@@ -1,17 +1,17 @@
 """
 Modul inti rendering stempel tanda tangan visual + konversi koordinat layar -> PDF.
 
-Spesifikasi tampilan stempel (WAJIB SESUAI):
-- Blok horizontal dengan latar putih/transparan:
-  - KIRI: QR code kotak (~25 mm / proporsional, error correction Q/H).
-          Di atas QR ada teks kecil (6-7 pt, abu-abu) "Digitally signed".
-  - KANAN: Gambar tanda tangan pengguna (PNG transparan, rasio terjaga).
-          Di bawahnya ada teks kecil (6-7 pt, abu-abu) "Simple signed" dan nama penanda tangan.
-  - DI BAWAH BLOK: Nama jelas, jabatan (opsional), dan tanggal/waktu penandatanganan.
+Desain minimalis & bersih (menyerupai stempel tanda tangan profesional):
+- Latar transparan secara default (opsi putih tersedia).
+- KIRI (opsional, `show_qr`): QR code kotak penuh setinggi blok utama (error correction H).
+- KANAN: Gambar tanda tangan PNG transparan berukuran besar & proporsional (rasio terjaga),
+  dengan bingkai tipis opsional (`show_border`) dan teks mikro abu-abu opsional (`show_labels`:
+  "Digitally signed" di kiri atas & "Simple signed" di kiri bawah).
+- BAWAH (opsional, `show_name` / `show_date`): Nama jelas, jabatan, dan tanggal/waktu WIB.
 """
 
 import io
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 import qrcode
@@ -37,9 +37,6 @@ def screen_to_pdf_coords(
     """
     Konversi koordinat layar (origin kiri-atas, satuan piksel CSS)
     menjadi koordinat PDF (origin kiri-bawah, satuan PDF points 1/72 inci).
-
-    Returns:
-        (pdf_x, pdf_y, pdf_w, pdf_h) di mana (pdf_x, pdf_y) adalah sudut kiri-bawah stempel.
     """
     if canvas_w <= 0 or canvas_h <= 0:
         raise ValueError("Dimensi canvas pratinjau harus lebih besar dari 0.")
@@ -52,9 +49,8 @@ def screen_to_pdf_coords(
     pdf_h = screen_h * scale_y
     pdf_y = pdf_page_h - ((screen_y + screen_h) * scale_y)
 
-    # Clamp agar tidak keluar dari batas halaman PDF
-    pdf_w = max(40.0, min(pdf_w, pdf_page_w))
-    pdf_h = max(30.0, min(pdf_h, pdf_page_h))
+    pdf_w = max(30.0, min(pdf_w, pdf_page_w))
+    pdf_h = max(20.0, min(pdf_h, pdf_page_h))
     pdf_x = max(0.0, min(pdf_x, pdf_page_w - pdf_w))
     pdf_y = max(0.0, min(pdf_y, pdf_page_h - pdf_h))
 
@@ -62,12 +58,12 @@ def screen_to_pdf_coords(
 
 
 def generate_qr_pil_image(url: str) -> Image.Image:
-    """Membuat QR code beresolusi tinggi dengan error correction level H."""
+    """Membuat QR code beresolusi tinggi dengan error correction level H tanpa margin berlebih."""
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=10,
-        border=1,
+        border=0,
     )
     qr.add_data(url)
     qr.make(fit=True)
@@ -83,140 +79,149 @@ def render_stamp_pdf_bytes(
     width_pt: float,
     height_pt: float,
     signer_title: Optional[str] = None,
-    transparent_background: bool = False,
+    transparent_background: bool = True,
+    show_qr: bool = True,
+    show_labels: bool = True,
+    show_name: bool = False,
+    show_date: bool = False,
+    show_border: bool = True,
 ) -> bytes:
     """
     Merender blok stempel horizontal sebagai 1 halaman PDF vektor presisi (ReportLab)
-    dengan ukuran tepat (width_pt x height_pt) untuk ditanam langsung sebagai
-    Signature Widget Appearance Stream di pyHanko.
-
-    Tata letak:
-    +------------------------------------------------------+
-    | Digitally signed  |       [Gambar Tanda Tangan]      |
-    | +---------------+ |         (PNG transparan,         |
-    | |   QR CODE     | |          rasio terjaga)          |
-    | |  (~25 mm)     | |  Simple signed                   |
-    | +---------------+ |  Nama Penanda Tangan             |
-    +------------------------------------------------------+
-    | Nama Jelas (Bold) | Jabatan (opsional)               |
-    | Ditandatangani: DD/MM/YYYY HH:MM:SS WIB              |
-    +------------------------------------------------------+
+    dengan ukuran tepat (width_pt x height_pt) untuk ditanam sebagai Signature Widget Appearance.
     """
     buf = io.BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=(width_pt, height_pt))
 
-    pad = max(3.0, min(width_pt, height_pt) * 0.04)
-
-    # Latar putih bersih atau transparan + bingkai tipis halus
-    if not transparent_background:
-        c.setFillColor(Color(1, 1, 1, alpha=0.96))
-        c.setStrokeColor(HexColor("#D1D5DB"))
-        c.setLineWidth(0.5)
-        c.roundRect(0.5, 0.5, width_pt - 1.0, height_pt - 1.0, radius=3, stroke=1, fill=1)
-    else:
-        c.setStrokeColor(HexColor("#E5E7EB"))
-        c.setLineWidth(0.4)
-        c.roundRect(0.5, 0.5, width_pt - 1.0, height_pt - 1.0, radius=3, stroke=1, fill=0)
-
-    # Skala font adaptif (terjaga di kisaran 6-7 pt sesuai spesifikasi)
-    scale_factor = min(1.0, max(0.75, height_pt / 95.0))
-    label_font_size = max(5.5, min(7.0, 6.5 * scale_factor))
-    name_font_size = max(6.0, min(8.0, 7.2 * scale_factor))
-    meta_font_size = max(5.5, min(6.8, 6.0 * scale_factor))
-
-    gray_text = HexColor("#6B7280")
+    pad = 4.0 if (show_border and show_labels) else 1.5
+    gray_micro = HexColor("#6B7280")
+    border_color = HexColor("#374151")
     dark_text = HexColor("#111827")
 
-    # Area footer di bawah blok (Nama jelas, jabatan opsional, tanggal/waktu)
-    footer_lines = 2 if not (signer_title and signer_title.strip()) else 3
-    line_h = meta_font_size + 2.2
-    footer_h = (footer_lines * line_h) + pad * 0.6
+    # Latar belakang putih hanya jika pengguna mematikan mode transparan
+    if not transparent_background:
+        c.setFillColor(Color(1, 1, 1, alpha=1.0))
+        c.rect(0, 0, width_pt, height_pt, stroke=0, fill=1)
 
-    # Garis pemisah tipis antara blok utama (QR+TTD) dan footer
-    divider_y = pad + footer_h
-    c.setStrokeColor(HexColor("#E5E7EB"))
-    c.setLineWidth(0.4)
-    c.line(pad, divider_y, width_pt - pad, divider_y)
+    # Hitung tinggi footer opsional (hanya jika show_name atau show_date aktif)
+    meta_font_size = max(5.2, min(7.0, height_pt * 0.085))
+    name_font_size = max(5.8, min(8.0, height_pt * 0.095))
+    line_h = meta_font_size + 2.0
 
-    # --- Render Footer (di bawah blok) ---
-    ts_wib = signed_at.astimezone(WIB)
-    ts_str = ts_wib.strftime("%d/%m/%Y %H:%M:%S WIB")
+    footer_items = []
+    if show_name and signer_name.strip():
+        footer_items.append(("name", signer_name.strip()))
+        if signer_title and signer_title.strip():
+            footer_items.append(("title", signer_title.strip()))
+    if show_date:
+        ts_str = signed_at.astimezone(WIB).strftime("%d/%m/%Y %H:%M WIB")
+        footer_items.append(("date", ts_str))
 
-    cur_y = divider_y - line_h
-    c.setFillColor(dark_text)
-    c.setFont("Helvetica-Bold", name_font_size)
-    c.drawString(pad, cur_y, _truncate_text(c, signer_name, "Helvetica-Bold", name_font_size, width_pt - 2 * pad))
+    footer_h = (len(footer_items) * line_h + 3.0) if footer_items else 0.0
 
-    if signer_title and signer_title.strip():
-        cur_y -= line_h
-        c.setFillColor(gray_text)
-        c.setFont("Helvetica", meta_font_size)
-        c.drawString(pad, cur_y, _truncate_text(c, signer_title.strip(), "Helvetica", meta_font_size, width_pt - 2 * pad))
+    # --- Render Footer Opsional di Bawah Blok ---
+    if footer_items:
+        cur_y = pad + (len(footer_items) - 1) * line_h
+        for kind, text in footer_items:
+            if kind == "name":
+                c.setFillColor(dark_text)
+                c.setFont("Helvetica-Bold", name_font_size)
+                c.drawString(
+                    pad,
+                    cur_y,
+                    _truncate_text(c, text, "Helvetica-Bold", name_font_size, width_pt - 2 * pad),
+                )
+            else:
+                c.setFillColor(gray_micro)
+                c.setFont("Helvetica", meta_font_size)
+                c.drawString(
+                    pad,
+                    cur_y,
+                    _truncate_text(c, text, "Helvetica", meta_font_size, width_pt - 2 * pad),
+                )
+            cur_y -= line_h
 
-    cur_y -= line_h
-    c.setFillColor(gray_text)
-    c.setFont("Helvetica", meta_font_size)
-    c.drawString(pad, cur_y, _truncate_text(c, ts_str, "Helvetica", meta_font_size, width_pt - 2 * pad))
-
-    # --- Area Utama (Atas): KIRI = QR + "Digitally signed", KANAN = TTD + "Simple signed" + Nama ---
-    main_bottom = divider_y + pad * 0.6
+    # --- Area Utama (QR di kiri + Kotak Tanda Tangan di kanan) ---
+    main_bottom = pad + footer_h
     main_top = height_pt - pad
-    main_h = max(20.0, main_top - main_bottom)
+    main_h = max(16.0, main_top - main_bottom)
 
-    # Ukuran QR ideal (~25mm = 70.87 pt), disesuaikan agar proporsional di dalam kotak
-    label_h = label_font_size + 3.0
-    max_qr_h = max(16.0, main_h - label_h)
-    max_qr_w = (width_pt - 2 * pad) * 0.42
-    qr_size = min(71.0, max_qr_h, max_qr_w)
+    # Ukuran font mikro untuk "Digitally signed" & "Simple signed" (halus seperti referensi)
+    micro_font_size = max(3.8, min(5.2, main_h * 0.09))
 
-    # KIRI: Teks "Digitally signed" di atas QR code
-    qr_x = pad
-    qr_y = main_bottom + max(0.0, (main_h - label_h - qr_size) / 2.0)
+    # KIRI: QR Code penuh setinggi blok utama (jika show_qr=True)
+    if show_qr:
+        # QR kotak setinggi main_h, maksimal 44% lebar agar sisi kanan tetap lega untuk TTD
+        qr_size = min(main_h, (width_pt - 2 * pad) * 0.44)
+        qr_x = pad
+        qr_y = main_bottom + (main_h - qr_size) / 2.0
 
-    c.setFillColor(gray_text)
-    c.setFont("Helvetica", label_font_size)
-    c.drawString(qr_x, qr_y + qr_size + 2.0, "Digitally signed")
+        qr_img = generate_qr_pil_image(verify_url)
+        qr_buf = io.BytesIO()
+        qr_img.save(qr_buf, format="PNG")
+        qr_buf.seek(0)
+        c.drawImage(ImageReader(qr_buf), qr_x, qr_y, width=qr_size, height=qr_size, mask="auto")
 
-    qr_img = generate_qr_pil_image(verify_url)
-    qr_buf = io.BytesIO()
-    qr_img.save(qr_buf, format="PNG")
-    qr_buf.seek(0)
-    c.drawImage(ImageReader(qr_buf), qr_x, qr_y, width=qr_size, height=qr_size, mask="auto")
+        # Kotak kanan tepat berdampingan dengan QR (jarak kecil rapi)
+        gap = max(2.5, min(6.0, width_pt * 0.02))
+        sig_box_x = qr_x + qr_size + gap
+        sig_box_y = qr_y
+        sig_box_w = max(16.0, (width_pt - pad) - sig_box_x)
+        sig_box_h = qr_size
+    else:
+        # Tanpa QR -> Tanda tangan memenuhi seluruh area utama!
+        sig_box_x = pad
+        sig_box_y = main_bottom
+        sig_box_w = max(16.0, width_pt - 2 * pad)
+        sig_box_h = main_h
 
-    # KANAN: Gambar tanda tangan PNG transparan (rasio terjaga) + "Simple signed" + nama
-    right_x = qr_x + qr_size + max(6.0, pad * 1.4)
-    right_w = max(20.0, (width_pt - pad) - right_x)
+    # Bingkai tipis di sekitar area tanda tangan (gaya referensi profesional)
+    if show_border:
+        c.setStrokeColor(border_color)
+        c.setLineWidth(0.55)
+        c.rect(sig_box_x, sig_box_y, sig_box_w, sig_box_h, stroke=1, fill=0)
 
-    # Teks di bawah gambar tanda tangan: "Simple signed" & nama penanda tangan
-    right_caption_h = (label_font_size + 2.0) * 2
-    sig_area_bottom = main_bottom + right_caption_h
-    sig_area_h = max(12.0, main_top - sig_area_bottom)
+    # Label mikro halus di kiri-atas & kiri-bawah kotak tanda tangan (opsional)
+    inner_top_pad = 2.0
+    inner_bottom_pad = 2.0
+    if show_labels:
+        top_label = "Digitally signed"
+        bot_label = "Simple signed"
+        label_x = sig_box_x + 3.0
 
-    c.setFillColor(gray_text)
-    c.setFont("Helvetica", label_font_size)
-    c.drawString(
-        right_x,
-        main_bottom + label_font_size + 2.5,
-        _truncate_text(c, "Simple signed", "Helvetica", label_font_size, right_w),
-    )
-    c.setFillColor(dark_text)
-    c.setFont("Helvetica", label_font_size)
-    c.drawString(
-        right_x,
-        main_bottom + 1.0,
-        _truncate_text(c, signer_name, "Helvetica", label_font_size, right_w),
-    )
+        # Jika ada border, beri sedikit ruang latar di belakang teks agar garis tidak menabrak huruf
+        c.setFont("Helvetica", micro_font_size)
+        if show_border:
+            top_w = c.stringWidth(top_label, "Helvetica", micro_font_size) + 3.0
+            bot_w = c.stringWidth(bot_label, "Helvetica", micro_font_size) + 3.0
+            c.setFillColor(Color(1, 1, 1, alpha=1.0))
+            c.rect(label_x - 1.5, sig_box_y + sig_box_h - micro_font_size * 0.55, top_w, micro_font_size + 1.0, stroke=0, fill=1)
+            c.rect(label_x - 1.5, sig_box_y - micro_font_size * 0.45, bot_w, micro_font_size + 1.0, stroke=0, fill=1)
+            top_text_y = sig_box_y + sig_box_h - micro_font_size * 0.35
+            bot_text_y = sig_box_y - micro_font_size * 0.25
+        else:
+            top_text_y = sig_box_y + sig_box_h - micro_font_size - 1.0
+            bot_text_y = sig_box_y + 1.0
+            inner_top_pad = micro_font_size + 2.5
+            inner_bottom_pad = micro_font_size + 2.5
 
-    # Gambar Tanda Tangan (rasio aspek 100% terjaga)
+        c.setFillColor(gray_micro)
+        c.drawString(label_x, top_text_y, _truncate_text(c, top_label, "Helvetica", micro_font_size, sig_box_w - 6.0))
+        c.drawString(label_x, bot_text_y, _truncate_text(c, bot_label, "Helvetica", micro_font_size, sig_box_w - 6.0))
+
+    # Gambar Tanda Tangan PNG Transparan (mengisi penuh kotak kanan, rasio aspek 100% terjaga)
+    avail_w = max(10.0, sig_box_w - 6.0)
+    avail_h = max(10.0, sig_box_h - inner_top_pad - inner_bottom_pad)
+
     with Image.open(io.BytesIO(signature_png_bytes)) as sig_pil:
         sig_rgba = sig_pil.convert("RGBA")
         sw, sh = sig_rgba.size
         if sw > 0 and sh > 0:
-            ratio = min(right_w / float(sw), sig_area_h / float(sh))
+            ratio = min(avail_w / float(sw), avail_h / float(sh))
             draw_w = sw * ratio
             draw_h = sh * ratio
-            draw_x = right_x + (right_w - draw_w) / 2.0
-            draw_y = sig_area_bottom + (sig_area_h - draw_h) / 2.0
+            draw_x = sig_box_x + (sig_box_w - draw_w) / 2.0
+            draw_y = sig_box_y + inner_bottom_pad + (avail_h - draw_h) / 2.0
 
             sig_buf = io.BytesIO()
             sig_rgba.save(sig_buf, format="PNG")

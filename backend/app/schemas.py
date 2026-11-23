@@ -150,6 +150,13 @@ class SignDocumentRequest(BaseModel):
     all_pages: bool = False
     signer_title: Optional[str] = Field(default=None, max_length=150)
     signer_display_name: Optional[str] = Field(default=None, max_length=150)
+    # Opsi tampilan stempel visual
+    show_qr: bool = True
+    show_labels: bool = True
+    show_name: bool = False
+    show_date: bool = False
+    show_border: bool = True
+    transparent_background: bool = True
 
 
 class InviteSignerItem(BaseModel):

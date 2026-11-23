@@ -461,6 +461,12 @@ def sign_document(
             h=payload.h,
             signer_title=payload.signer_title,
             all_pages=payload.all_pages,
+            transparent_background=payload.transparent_background,
+            show_qr=payload.show_qr,
+            show_labels=payload.show_labels,
+            show_name=payload.show_name,
+            show_date=payload.show_date,
+            show_border=payload.show_border,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
