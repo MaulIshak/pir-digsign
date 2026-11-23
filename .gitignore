@@ -15,4 +15,5 @@ backend/certs/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/public/pdf.worker.min.mjs
 *.log

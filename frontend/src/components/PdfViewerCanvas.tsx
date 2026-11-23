@@ -45,10 +45,7 @@ export default function PdfViewerCanvas({
       setError(null);
       try {
         const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url
-        ).toString();
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         // Salin buffer karena pdf.js mentransfer ArrayBuffer ke worker
         const copy = new Uint8Array(pdfBytes!.slice(0));
