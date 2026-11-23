@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: digsign-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-digsign}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-digsign_secret_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-digsign_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-digsign} -d ${POSTGRES_DB:-digsign_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: digsign-backend
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-digsign}:${POSTGRES_PASSWORD:-digsign_secret_dev}@postgres:5432/${POSTGRES_DB:-digsign_db}
+      LOCAL_STORAGE_DIR: /app/storage
+      CERT_DIR: /app/certs
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_storage:/app/storage
+      - backend_certs:/app/certs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_PUBLIC_BASE_URL: ${NEXT_PUBLIC_PUBLIC_BASE_URL:-http://localhost:3000}
+    container_name: digsign-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_PUBLIC_BASE_URL: ${NEXT_PUBLIC_PUBLIC_BASE_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_storage:
+  backend_certs:

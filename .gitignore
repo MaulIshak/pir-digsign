@@ -1,0 +1,18 @@
+# Environment
+.env
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+backend/.venv/
+backend/storage/
+backend/certs/
+.pytest_cache/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+*.log
